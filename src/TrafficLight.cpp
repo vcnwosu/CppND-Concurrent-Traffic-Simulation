@@ -52,6 +52,8 @@ void TrafficLight::waitForGreen()
 
 TrafficLightPhase TrafficLight::getCurrentPhase()
 {
+    std::lock_guard<std::mutex> uLock(_mutex);
+
     return _currentPhase;
 }
 
@@ -73,8 +75,8 @@ void TrafficLight::cycleThroughPhases()
     // generate random cycle duration
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<int> dis(4, 6);
-    double cycleDuration = dis(gen);
+    std::uniform_int_distribution<> dis(4, 6);
+    long cycleDuration = dis(gen);
 
     // keep track of the time between cycles
     std::chrono::time_point<std::chrono::system_clock> lastUpdate(std::chrono::system_clock::now());
@@ -84,13 +86,17 @@ void TrafficLight::cycleThroughPhases()
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         // get time duration from last update
-        long timePassed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - lastUpdate).count();
+        long timePassed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - lastUpdate).count();
 
         // enough time has passed, we can now update the lights
         if (timePassed >= cycleDuration) {
+            // get lock, since we are going to modify _currentPhase
+            std::lock_guard<std::mutex> uLock(_mutex);
+
             // update traffic light
             TrafficLightPhase nextPhase = _currentPhase == TrafficLightPhase::green ? TrafficLightPhase::red : TrafficLightPhase::green;
             _currentPhase = nextPhase;
+            _condition.notify_one();
 
             // send notification with message queue
             _queue.send(std::move(nextPhase));
