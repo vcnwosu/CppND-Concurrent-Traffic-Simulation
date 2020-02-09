@@ -1,5 +1,6 @@
 #include <iostream>
 #include <random>
+#include <thread>
 #include "TrafficLight.h"
 
 /* Implementation of class "MessageQueue" */
@@ -42,7 +43,9 @@ TrafficLightPhase TrafficLight::getCurrentPhase()
 
 void TrafficLight::simulate()
 {
-    // FP.2b : Finally, the private method „cycleThroughPhases“ should be started in a thread when the public method „simulate“ is called. To do this, use the thread queue in the base class. 
+    // FP.2b : Finally, the private method „cycleThroughPhases“ should be started in a thread when
+    // the public method „simulate“ is called. To do this, use the thread queue in the base class.
+    threads.emplace_back(std::thread(&TrafficLight::cycleThroughPhases, this));
 }
 
 // virtual function which is executed in a thread
@@ -52,4 +55,35 @@ void TrafficLight::cycleThroughPhases()
     // and toggles the current phase of the traffic light between red and green and sends an update method 
     // to the message queue using move semantics. The cycle duration should be a random value between 4 and 6 seconds. 
     // Also, the while-loop should use std::this_thread::sleep_for to wait 1ms between two cycles. 
+
+    // generate random cycle duration
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dis(4, 6);
+    double cycleDuration = dis(gen);
+
+    // keep track of the time between cycles
+    std::chrono::time_point<std::chrono::system_clock> lastUpdate(std::chrono::system_clock::now());
+
+    while (true) {
+        // wait for 1ms between two cycles
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+        // get time duration from last update
+        long timePassed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - lastUpdate).count();
+
+        // enough time has passed, we can now update the lights
+        if (timePassed >= cycleDuration) {
+            // update traffic light
+            TrafficLightPhase nextPhase = _currentPhase == TrafficLightPhase::green ? TrafficLightPhase::red : TrafficLightPhase::green;
+            _currentPhase = nextPhase;
+
+            // send notification with message queue
+            // TODO: uncomment when queue has been implemented
+            // _queue.send(std::move(nextPhase));
+
+            // reset update time to start a new cycle
+            lastUpdate = std::chrono::system_clock::now();
+        }
+    }
 }
